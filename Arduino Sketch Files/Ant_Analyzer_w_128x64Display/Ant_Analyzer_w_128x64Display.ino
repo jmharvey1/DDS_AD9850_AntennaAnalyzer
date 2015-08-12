@@ -8,6 +8,12 @@
  */
 
 #include <U8glib.h>
+
+// Uncomment just one of the following:
+   #define BAND40 //Remove comment markers to scan for 40 mtrs
+//   #define BAND20 //Remove comment markers to scan for 20 mtrs
+//   #define BAND15 //Remove comment markers to scan for 15 mtrs
+// Using the above strategy, other bands may be defined as needed
  
  #define W_CLK 8       // Pin 8 - connect to AD9850 module word load clock pin (CLK)
  #define FQ_UD 9       // Pin 9 - connect to freq update pin (FQ)
@@ -16,10 +22,10 @@
  
  #define pulseHigh(pin) {digitalWrite(pin, HIGH); digitalWrite(pin, LOW); }
 U8GLIB_SH1106_128X64 u8g(3, 4, 7, 6 , 5); // SW SPI Com: CLK = 3, MOSI = 4, CS = 7, dc = 6, RES = 5
-double Start_Freq =6.4e6; //start Freq; in Mhz  20.5e6;//  3.6e6;//
-double End_Freq = 7.8e6; //End Scan Freq; in Mhz 22.5e6;// 4.5e6;//
+double Start_Freq = 6.4e6; //13.4e6;//  20.5e6;//6.4e6; //start Freq; in Mhz  20.5e6;//  3.6e6;//
+double End_Freq =  7.8e6; //14.5e6;// 22.5e6;//7.8e6; //End Scan Freq; in Mhz 22.5e6;// 4.5e6;//
 double Step_Freq = 10e3; //Step  Freq; in KHz 25000;// 25e3;// 
-double VSWRLim = 1.5;
+double VSWRLim = 1.7;
 double current_freq;
 int FwdOffSet;
 int RevOffSet;
@@ -66,12 +72,27 @@ void sendFrequency(double frequency) {
 }
 
 void setup() {
+  char str_Band[4];
  // configure arduino data pins for output
   pinMode(FQ_UD, OUTPUT);
   pinMode(W_CLK, OUTPUT);
   pinMode(DATA, OUTPUT);
   pinMode(RESET, OUTPUT);
-   
+  #ifdef BAND40 //Set Freq Limits for 40_MTRS 
+    Start_Freq = 6.4e6; // Freq; in Mhz
+    End_Freq =  7.8e6; // Freq; in Mhz
+    sprintf (str_Band, "40"); //str_Band = "40"
+  #endif
+  #ifdef BAND20 //Set Freq Limits for 20_MTRS 
+    Start_Freq = 13.4e6; // Freq; in Mhz  20.5e6;//  3.6e6;//
+    End_Freq =  14.8e6; // Freq; in Mhz
+    sprintf (str_Band, "20"); //str_Band = "20"
+  #endif
+  #ifdef BAND15 //Set Freq Limits for 15_MTRS 
+    Start_Freq = 20.5e6; // Freq; in Mhz
+    End_Freq =  22.5e6; // Freq; in Mhz
+    sprintf (str_Band, "15"); //str_Band = "15"
+  #endif
   pulseHigh(RESET);
   pulseHigh(W_CLK);
   pulseHigh(FQ_UD);  // this pulse enables serial mode - Datasheet page 12 figure 10
@@ -85,6 +106,7 @@ void setup() {
   SweepData[6] = 0;
   char buf2 [32];
   char buf3 [32];
+  char buf4 [32];
   char str_StrtFq[6];
   char str_EndFq[6];
   char str_SWRLim[6];
@@ -98,12 +120,14 @@ void setup() {
   sprintf (buf,"%s to %s Mhz", str_StrtFq,str_EndFq);
   sprintf (buf2,"MAX VSWR: %s", str_SWRLim);
   sprintf (buf3,"Step: %s Khz", str_Step);
+  sprintf (buf4,"%sM Ant Analyzer", str_Band);
+  
    u8g.firstPage();
    do {
     int row = 11; //first OLED row to print on
     u8g.setFont(u8g_font_unifont);
     u8g.setPrintPos(0, row);
-    u8g.print("Antenna Analyzer");
+    u8g.print(buf4);
     row = NuRow(row);
     u8g.setPrintPos(0, row);
     u8g.print(buf);
@@ -203,7 +227,7 @@ bool PrintNextPoint(bool RunCurve){
     
     sendFrequency(current_freq);  // freq
     delay(100);
-     // Read the forawrd and reverse voltages
+     // Read the forward and reverse voltages
      REV = 0.0;
      FWD = 0.0;
      for (int i=0; i<70; i++) {
@@ -228,8 +252,7 @@ bool PrintNextPoint(bool RunCurve){
       
       VSWR = ((FWD+REV)/(FWD-REV));
     }
-    if(FWD>=116
-    ) EffOhms = VSWR*47.0;//FWD>=94
+    if(FWD>=116) EffOhms = VSWR*47.0;//FWD>=94
     else  EffOhms = 47.0/VSWR;
     u8g.firstPage();
     // Post results
@@ -277,12 +300,12 @@ bool PrintNextPoint(bool RunCurve){
         SweepData[3] = current_freq;
       }
     }
-    if (VSWR < LastVSWR-0.02){
+    if (VSWR < LastVSWR-0.06){
       VSWRtrendUP = false;
        LastVSWR = VSWR;
     }
 
-    if (VSWR > LastVSWR+0.02){
+    if (VSWR > LastVSWR+0.06){
       VSWRtrendUP = true;
       LastVSWR = VSWR;
     }
