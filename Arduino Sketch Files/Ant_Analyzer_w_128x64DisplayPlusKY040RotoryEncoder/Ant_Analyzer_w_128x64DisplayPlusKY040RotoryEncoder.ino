@@ -36,6 +36,19 @@
  */
 
 #include <U8glib.h>
+#if defined(__AVR_ATmega32U4__)
+  //Code in here will only be compiled if an Arduino Leonardo is used.
+  #define InterruptId 1
+#endif
+//#if defined(__AVR_ATmega16U4__)
+//  //Code in here will only be compiled if an Arduino Uno is used.
+//  #define InterruptId 0
+//#endif
+
+#if defined(__AVR_ATmega328P__)
+  //Code in here will only be compiled if an Arduino Uno is used.
+  #define InterruptId 0
+#endif
 
  
  #define W_CLK 8       // Pin 8 - connect to AD9850 module word load clock pin (CLK)
@@ -99,20 +112,21 @@ const int PinSW=A5;  // Used for the push button switch
 void isr()  { 
    unsigned long ThisIntTime = micros();
    if (ThisIntTime < WaitInterval) return;
-   WaitInterval = ThisIntTime+3000; //move the next valid interrupt out by 3 milliSeconds
+   WaitInterval = ThisIntTime+80000; //move the next valid interrupt out by 3 milliSeconds
    int cnt =0;
    int DtHIcnt =0;
    int ClkHIcnt =0;
    bool ClkLow = true;
    bool DtLow = true;
-   detachInterrupt(1);
-   while(cnt <15){
+   detachInterrupt(InterruptId);
+   int SmplCnt = 30;
+   while(cnt <SmplCnt*2){
     if(analogRead(PinDT)>= 500) DtHIcnt++;
     if (digitalRead(PinCLK)!= 0) ClkHIcnt++;
     cnt++;
    }
-   if(DtHIcnt>7) DtLow = !DtLow;
-   if(ClkHIcnt>7) ClkLow =!ClkLow;
+   if(DtHIcnt>SmplCnt+1) DtLow = !DtLow;
+   if(ClkHIcnt>SmplCnt+1) ClkLow =!ClkLow;
    if( ClkLow == DtLow) IncDecVal = -1;
    else IncDecVal = +1;
 //   if (ClkLow) Serial.print ("cL/");
@@ -121,17 +135,14 @@ void isr()  {
 //   else Serial.print ("dH; "); 
 //  if (IncDecVal>0) Serial.print ("+ ");
 //  else  Serial.print ("- ");
-  virtualPosition = virtualPosition+ IncDecVal;
+   virtualPosition = virtualPosition+ IncDecVal;
     if( IncDecVal > 0 && virtualPosition >=6 ) virtualPosition = 1;
     if( IncDecVal < 0 && virtualPosition <=0 ) virtualPosition = 5;
-    sprintf (buf,"Count = %d", virtualPosition);
+//    sprintf (buf,"Count = %d", virtualPosition);
 //    Serial.println ("**");
 
-   attachInterrupt (1,isr,CHANGE);
-// given current clock status, setup to detect next legitimate transistion.   
-//    if (ClkLow) attachInterrupt (1,isr,RISING);
-//    else attachInterrupt (1,isr,FALLING);
-  TurnDetected = true;
+   attachInterrupt (InterruptId,isr,CHANGE);
+   TurnDetected = true;
 } // Interrupt service routine End
 
 ///******** End of Rotory Sw Interrupt Service Routine *******///
@@ -162,7 +173,7 @@ void setup() {
    pinMode(PinCLK,INPUT);
    pinMode(PinDT,INPUT);  
    pinMode(PinSW,INPUT);
-   attachInterrupt (1,isr,CHANGE);   // Use interrupt 0 [Uno] or 1 [Leonardo]; It is always connected to pin 2 on Arduino UNO
+   attachInterrupt (InterruptId,isr,CHANGE);   // Use interrupt 0 [Uno] or 1 [Leonardo]; It is always connected to pin 2 on Arduino UNO
    TurnDetected = false;
    StartSwp = false;
    Serial.begin (9600);
@@ -205,7 +216,7 @@ void loop() {
 //     } while( u8g.nextPage() ); //// End Encoder Loop Instructions
   }
   //StartSwp = !StartSwp;
-  detachInterrupt(1); // Disable Rotory Sw interrupts While running Antenna Sweep
+  detachInterrupt(InterruptId); // Disable Rotory Sw interrupts While running Antenna Sweep
 
 
 // Continue original Ant Analyzer loop  
@@ -272,7 +283,7 @@ void loop() {
      u8g.print("to Scan Again");
     } while( u8g.nextPage() );
 
-  attachInterrupt (1,isr,CHANGE);   //Re-Enable Rotory Sw  Use interrupt 0 [Uno] or 1 [Leonardo];
+  attachInterrupt (InterruptId,isr,CHANGE);   //Re-Enable Rotory Sw  Use interrupt 0 [Uno] or 1 [Leonardo];
 
 //  }
 }  // End Main Loop Code
