@@ -78,7 +78,7 @@ const unsigned char PSK_Logo_bits[] PROGMEM = {
  
 //PSK Meter Variables - Start 
  #define MAXSAMPLES 64 //exactly two psk31 cycles
-int sample[MAXSAMPLES];
+float sample[MAXSAMPLES];
 double theta[MAXSAMPLES];
 double A[10];
 double B[10];
@@ -324,6 +324,7 @@ void loop() {
       Start = micros(); 
       for (i=0;i<MAXSAMPLES; i++){
           sample[i] = analogRead(A0)-RevOffSet;
+          //sample[i] = 1024;//testing only
           delayMicroseconds(SampleWait); // wait .96 millisecond
         }
       period = micros()-Start;
@@ -430,11 +431,17 @@ void loop() {
       int y0 = 64;
       int x1 = 0;
       int y1 = 0;
+      //if(CorrectReading(REV) > 1/ScaleFctr) 
+      //ScaleFctr = 1/CorrectReading(REV);
+      float maxval= 0.0;
+      for (i=0; i<MAXSAMPLES; i++){
+        if(sample[i]>maxval) maxval = sample[i]; 
+      }
       for (int i=0; i<64; i++) {
         x1 = 2*i;
         if (IMD >-1.0) y1 = 64;
         //if(sample[i]>REV) REV=sample[i];
-        else y1 = int(64-(60*sample[i]*ScaleFctr));
+        else y1 = 64-(int)(62*sample[i]/maxval);
         if(y1 <0) y1 = 0;
         u8g.drawLine(x0, y0, x1, y1);
         x0 = x1;
@@ -449,7 +456,7 @@ void loop() {
       u8g.setPrintPos(17, row);
       u8g.print(IMD);// 
       u8g.setPrintPos(80, row);
-      u8g.print(REV);//REV  RXstring
+      u8g.print((float)(5.0*CorrectReading(REV)/1024.0));//correted PeakV
       } while( u8g.nextPage() );
       //&&&&&&&&&&&&&& for Testing Only &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
       if(false){
@@ -465,10 +472,14 @@ void loop() {
         char inChar = (char)Serial.read();
         if (inChar == 's') { // if true, we have a valid request
           for (int i=0; i<64; i++) { // send data
-            //int y1 = int(244*fabs(sample[i]*ScaleFctr));// use for self leveling mode
-            int y1 = int(fabs(sample[i]*0.63));
-            //int y1 = sample[i];
-            Serial.write(y1);
+            //int y1 = int(fabs(sample[i]*0.63));//old single byte method
+            //Serial.write(y1);//old single byte method
+            //send each data sample as two bytes
+            float absVal = fabs(sample[i]);
+            int y1 = (int)(absVal/256);
+            Serial.write(y1);// write the HIGH Byte
+            y1 = (int)(absVal-(256*y1));
+            Serial.write(y1);// write the LOW Byte
            // get access to the float as a byte-array:
 //           float absVal = fabs(sample[i]);
 //           byte * data = (byte *) &absVal;
@@ -492,6 +503,7 @@ double CalcVal;//22.0417;
  else{
   CalcVal =0.44324138* ReadVal+(78.242-24.841);
  }
+  CalcVal = 2.01* CalcVal;// this bumps the slope back to where a count of 1024 in gives a count of ~1024 out
  return CalcVal;
 }
 
